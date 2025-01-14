@@ -1,69 +1,37 @@
 import rosbag
 import csv
 import os
-from gazebo_msgs.msg import ModelStates
 
-def extract_model_states_data(msg):
-    """gazebo_msgs/ModelStates からデータ行を抽出するヘルパー関数"""
-    for i, name in enumerate(msg.name):
-        yield [
-            msg.header.seq,
-            msg.header.stamp.secs,
-            msg.header.stamp.nsecs,
-            name,
-            msg.pose[i].position.x,
-            msg.pose[i].position.y,
-            msg.pose[i].position.z,
-            msg.pose[i].orientation.x,
-            msg.pose[i].orientation.y,
-            msg.pose[i].orientation.z,
-            msg.pose[i].orientation.w,
-            msg.twist[i].linear.x,
-            msg.twist[i].linear.y,
-            msg.twist[i].linear.z,
-            msg.twist[i].angular.x,
-            msg.twist[i].angular.y,
-            msg.twist[i].angular.z,
-        ]
+# ルートディレクトリのパスを設定
+root_dir = '/path/to/root/directory'
 
-def rosbag_to_csv(rosbag_path, topic_name="/gazebo/model_states", header=None):
-    """rosbagファイルをCSVファイルに変換する関数"""
-    csv_filename = os.path.splitext(rosbag_path)[0] + ".csv"
+# ルートディレクトリ内の全ての.bagファイルを取得
+bag_files = [f for f in os.listdir(root_dir) if f.endswith('.bag')]
 
-    if header is None:
-        header = [
-            "header.seq", "header.stamp.secs", "header.stamp.nsecs", "name",
-            "pose.position.x", "pose.position.y", "pose.position.z",
-            "pose.orientation.x", "pose.orientation.y", "pose.orientation.z", "pose.orientation.w",
-            "twist.linear.x", "twist.linear.y", "twist.linear.z",
-            "twist.angular.x", "twist.angular.y", "twist.angular.z"
-        ]
+for bag_file in bag_files:
+    bag_path = os.path.join(root_dir, bag_file)
+    base_name = os.path.splitext(bag_file)[0]
+    csv_file = os.path.join(root_dir, base_name + '.csv')
     
-    try:
-        with rosbag.Bag(rosbag_path, 'r') as bag:
-            with open(csv_filename, 'w', newline='') as csvfile:
-                writer = csv.writer(csvfile)
-                writer.writerow(header)
+    with rosbag.Bag(bag_path, 'r') as bag, open(csv_file, 'w', newline='') as csvfile:
+        csv_writer = csv.writer(csvfile)
+        csv_writer.writerow(['time', 'id', 'x', 'y'])
+        
+        last_write_time = None
+        interval = 0.4  # 0.4秒間隔
+    
+        for topic, msg, t in bag.read_messages(topics=['/gazebo/model_states']):
+            current_time = t.to_sec()
+            if last_write_time is None or current_time - last_write_time >= interval:
+                try:
+                    model_names = msg.name
+                    robot_idx = model_names.index('orne_box')
+                    actor_idx = model_names.index('actor2')
+    
+                    csv_writer.writerow([f"{current_time:.6f}", 2, msg.pose[robot_idx].position.x, msg.pose[robot_idx].position.y])
+                    csv_writer.writerow([f"{current_time:.6f}", 1, msg.pose[actor_idx].position.x, msg.pose[actor_idx].position.y])
+                    last_write_time = current_time
+                except AttributeError:
+                    print(f"メッセージに 'x' または 'y' 属性が存在しません: {msg}")
 
-                for _, msg, _ in bag.read_messages(topics=[topic_name]):
-                    for row in extract_model_states_data(msg):
-                        writer.writerow(row)
-
-    except rosbag.bag.ROSBagUnindexedException:
-        print(f"Error: '{rosbag_path}' はインデックスされていません。`rosbag reindex {rosbag_path}` を実行してください。")
-
-def convert_all_rosbags(root_dir, topic_name="/gazebo/model_states", header=None):
-    """指定されたディレクトリ以下の全てのrosbagファイルをCSVに変換する関数"""
-    for dirpath, _, filenames in os.walk(root_dir):
-        for filename in filenames:
-            if filename.endswith(".bag"):
-                rosbag_path = os.path.join(dirpath, filename)
-                print(f"Converting: {rosbag_path}")
-                rosbag_to_csv(rosbag_path, topic_name, header)
-
-if __name__ == "__main__":
-    root_dir = "/home/ubuntu/host_files/oculus_rosbag-20241201T114313Z-001/oculus_rosbag"
-    topic_name = "/gazebo/model_states"
-
-    convert_all_rosbags(root_dir, topic_name)
-    print("Conversion complete.")
+    print(f"データが {csv_file} に正常に書き込まれました。")

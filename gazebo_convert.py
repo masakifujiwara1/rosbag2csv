@@ -26,10 +26,13 @@ for bag_file in bag_files:
                 try:
                     model_names = msg.name
                     robot_idx = model_names.index('orne_box')
-                    actor_idx = model_names.index('actor2')
+                    actor2_idx = model_names.index('actor2')
+                    if 'actor1' in model_names:
+                        actor1_idx = model_names.index('actor1')
+                        csv_writer.writerow([f"{current_time:.6f}", 3, msg.pose[actor1_idx].position.x, msg.pose[actor1_idx].position.y])
     
                     csv_writer.writerow([f"{current_time:.6f}", 2, msg.pose[robot_idx].position.x, msg.pose[robot_idx].position.y])
-                    csv_writer.writerow([f"{current_time:.6f}", 1, msg.pose[actor_idx].position.x, msg.pose[actor_idx].position.y])
+                    csv_writer.writerow([f"{current_time:.6f}", 1, msg.pose[actor2_idx].position.x, msg.pose[actor2_idx].position.y])
                     last_write_time = current_time
                 except AttributeError:
                     print(f"メッセージに 'x' または 'y' 属性が存在しません: {msg}")

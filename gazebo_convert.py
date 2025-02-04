@@ -22,6 +22,7 @@ for bag_file in bag_files:
     
         for topic, msg, t in bag.read_messages(topics=['/gazebo/model_states']):
             current_time = t.to_sec()
+            print(f"current_time: {current_time}")
             if last_write_time is None or current_time - last_write_time >= interval:
                 try:
                     model_names = msg.name
